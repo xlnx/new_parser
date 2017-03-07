@@ -19,6 +19,7 @@ struct element
 	long long value;
 	constexpr element(long long v): value(v) {}
 };
+
 struct lexer_element: element
 {
 	const char* src_str;
