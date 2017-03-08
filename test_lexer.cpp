@@ -1,6 +1,23 @@
 #include "lexer.h"
-
-main()
+lexer lex(
+	"("_T |
+	")"_T |
+	"+"_T |
+	"-"_T |
+	"*"_T |
+	"/"_T |
+	"number"_T >> "\\d+"
+);
+int main()
 {
-	auto var = "if"_T | "then"_T;
+	lex <= "( 1 + 2 )";
+	while (!lex.empty())
+	{
+		lex.next();
+	}
+	lex << "( 1 + 3 )" << "2 + 1";
+	while (!lex.empty())
+	{
+		lex.next();
+	}
 }

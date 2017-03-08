@@ -1,87 +1,65 @@
-#pragma once
-#include <cstring>
-#include <string>
-#include <cstddef>
-#include <regex>
-#include <vector>
+#pragma once			// lexer.h
+#include "lexer_initializer.h"
+#include <iostream>
 
-constexpr long long str_hash_64(const char *str)
+template <typename CharT>
+class basic_lexer
 {
-	long long seed = 131;
-	long long hash = 0;
-	while (*str)
-		hash = hash * seed + (*str++);
-	return hash & ((unsigned long long)(-1LL) >> 1);
-}
-
-struct element
-{
-	long long value;
-	constexpr element(long long v): value(v) {}
-};
-
-struct lexer_element: element
-{
-	const char* src_str;
-	constexpr lexer_element(const char s[]):
-		element(str_hash_64(s)), src_str(s) {}
-};
-constexpr lexer_element operator ""_T (const char s[], std::size_t)
-{
-	return lexer_element(s);
-}
-
-struct lexer_rule
-{
-	const char* src_str;
-	bool whole_word;
-	constexpr lexer_rule(const char s[], bool w = false):
-		src_str(s), whole_word(w) {}
-};
-constexpr lexer_rule operator ""_W (const char s[], std::size_t)
-{
-	return lexer_rule(s, true);
-}
-
-struct lexer_init_element
-{
-	std::regex mode;
-	long long value;
-	lexer_init_element(const lexer_element& lex):
-		value(lex.value), mode(std::regex([](const char* p){
-			static const auto escape_lst = "*.?+-$^[](){}|\\/";
-			std::string res;
-			while (*p)
+	lexer_initializer rules;
+	using iterator = const CharT*;
+	using string_type = std::basic_string<CharT>;
+	string_type str;
+	iterator iter;
+public:
+	struct token;
+	using value_type = token;
+	using position_type = std::pair<unsigned, unsigned>;
+	struct token
+	{
+		long long id;
+		string_type value;
+	};
+public:
+	basic_lexer(const lexer_initializer& list):
+		rules(list), iter(&str[0]) {}
+	virtual ~basic_lexer() = default;
+public:
+	void reset() { str = ""; iter = &str[0]; }
+	bool empty() const { return !*iter; }
+	basic_lexer& operator << (string_type&& src)
+	{
+		auto diff = iter - &str[0];
+		str += std::forward<string_type>(src) + "\n";
+		iter = &str[0] + diff;
+		return *this;
+	}
+	void operator <= (string_type&& src)
+	{
+		str = std::forward<string_type>(src);
+		iter = &str[0];
+	}
+	value_type next()
+	{
+		static string_type spaces = " \t\r\n";
+		if (*iter)
+		{
+			std::match_results<const CharT*> result;
+			for (const auto& rule: rules)
 			{
-				if (strchr(escape_lst, *p)) res += "\\";
-				res += *p++;
+				if (std::regex_search(iter, result, rule.mode, std::regex_constants::match_continuous))
+				{
+					while (iter != result.suffix().first)
+							++iter;
+					while (*iter && spaces.find_first_of(*iter) != string_type::npos)
+							++iter;
+					string_type res = result[0];
+					std::cout << res << std::endl;
+					return {str_hash_64(res.c_str()), res};
+				}
 			}
-			return res;
-		}(lex.src_str),
-			std::regex::nosubs | std::regex::optimize)) {}
-	lexer_init_element(const lexer_element& lex, const lexer_rule& rule):
-		value(lex.value), mode(std::regex(*rule.src_str ?
-				std::string(rule.src_str) + (rule.whole_word ? "\\b" : "") : "$^",
-			std::regex::nosubs | std::regex::optimize)) {}
+			iter = &str[str.length()];
+		}
+	}
 };
-lexer_init_element operator >> (const lexer_element& lex, const lexer_rule& rule)
-{
-	return lexer_init_element(lex, rule);
-}
 
-struct lexer_init_list: std::vector<lexer_init_element>
-{
-	lexer_init_list(const lexer_init_element& lex):
-		std::vector<lexer_init_element>({lex}) {}
-};
-lexer_init_list operator | (const lexer_init_element& l, const lexer_init_element& lex)
-{
-	lexer_init_list lst(l);
-	lst.push_back(lex);
-	return lst;
-}
-const lexer_init_list& operator | (const lexer_init_list& lst, const lexer_init_element& lex)
-{
-	const_cast<lexer_init_list&>(lst).push_back(lex);
-	return lst;
-}
+using lexer = basic_lexer<char>;
