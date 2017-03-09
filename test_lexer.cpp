@@ -1,13 +1,15 @@
 #include "lexer.h"
+#include <iostream>
 lexer lex(
 	"("_T |
-	")"_T |
-	"+"_T |
-	"-"_T |
-	"*"_T |
-	"/"_T |
+	")" |
+	"+" |
+	"-" |
+	"*" |
+	"/" |
 	"number"_T >> "\\d+"
 );
+// init<init_elem> | elem
 int main()
 {
 	lex <= "( 1 + 2 )";
@@ -20,4 +22,5 @@ int main()
 	{
 		lex.next();
 	}
+	std::cout << (1 + 2 | 3) << std::endl;
 }

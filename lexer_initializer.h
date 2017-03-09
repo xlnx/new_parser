@@ -3,8 +3,7 @@
 #include <string>
 #include <cstddef>
 #include <regex>
-#include <vector>
-#include <type_traits>
+#include "initializer.h"
 
 inline constexpr long long str_hash_64(const char *str)
 {
@@ -14,12 +13,6 @@ inline constexpr long long str_hash_64(const char *str)
 		hash = hash * seed + (*str++);
 	return hash & ((unsigned long long)(-1LL) >> 1);
 }
-
-struct element
-{
-	long long value;
-	constexpr element(long long v): value(v) {}
-};
 
 struct lexer_element: element
 {
@@ -44,7 +37,7 @@ inline constexpr lexer_rule operator ""_W (const char s[], std::size_t)
 	return lexer_rule(s, true);
 }
 
-struct lexer_init_element
+struct lexer_init_element: init_element
 {
 	std::regex mode;
 	long long value;
@@ -70,44 +63,4 @@ inline lexer_init_element operator >> (const lexer_element& lex, const lexer_rul
 	return lexer_init_element(lex, rule);
 }
 
-template <typename T, typename = typename
-	std::enable_if<std::is_class<T>::value>::type>
-struct initializer: std::vector<T>
-{
-	using value_type = T;
-	initializer(const T& elem):
-		std::vector<T>({elem}) {}
-	template <typename U, typename = typename
-			std::enable_if<
-				!std::is_same<T, U>::value && 
-				std::is_constructible<T, const U&>::value
-			>::type>
-		initializer(const initializer<U>& list)
-		{ for (auto& elem: list) std::vector<T>::push_back(elem); }
-};
-template <typename T>
-inline initializer<T> operator | (const T& e1, const T& e2)
-{
-	initializer<T> list(e1);
-	list.push_back(e2);
-	return list;
-}
-template <typename T>
-inline const initializer<T>& operator | (const initializer<T>& list, const T& e)
-{
-	const_cast<initializer<T>&>(list).push_back(e);
-	return list;
-}
-template <typename T, typename U, typename = typename
-			std::enable_if<
-				!std::is_same<T, U>::value && 
-				std::is_constructible<T, const U&>::value
-			>::type>
-inline initializer<T> operator | (const initializer<U>& list, const T& e)
-{
-	auto l = initializer<T>(list);
-	l.push_back(e);
-	return l;
-}
-
-using lexer_initializer = initializer<lexer_init_element>;
+using lexer_initializer = init_element_list<lexer_init_element>;

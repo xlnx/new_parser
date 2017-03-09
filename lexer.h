@@ -1,6 +1,5 @@
 #pragma once			// lexer.h
 #include "lexer_initializer.h"
-#include <iostream>
 
 template <typename CharT>
 class basic_lexer
@@ -53,7 +52,6 @@ public:
 					while (*iter && spaces.find_first_of(*iter) != string_type::npos)
 							++iter;
 					string_type res = result[0];
-					std::cout << res << std::endl;
 					return {str_hash_64(res.c_str()), res};
 				}
 			}
