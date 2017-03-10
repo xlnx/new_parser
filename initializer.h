@@ -5,7 +5,10 @@
 struct element			// base of element literal type
 {
 	long long value;
-	constexpr element(long long v): value(v) {}
+	constexpr element(long long v):
+		value(v) {}
+	constexpr element(const element& elem):
+		value(elem.value) {}
 };
 struct init_element
 {
@@ -51,68 +54,21 @@ struct initializer: std::vector<T>
 		{ for (auto& elem: list) std::vector<T>::push_back(elem); }
 };
 
-template <typename T, typename = typename
-	std::enable_if<std::is_base_of<element, T>::value>::type>
-using element_list = initializer<T>;
+using element_list = initializer<element>;
 template <typename T, typename = typename
 	std::enable_if<std::is_base_of<init_element, T>::value>::type>
 using init_element_list = initializer<T>;
 
 
 // element concat operator
-template <typename T>
-inline element_list<T> operator + (const T& e1, const T& e2)
+inline initializer<element> operator + (const element& e1, const element& e2)
 {
-	return element_list<T>({e1, e2});
+	return initializer<element>({e1, e2});
 }
-template <typename T, typename U, typename = typename
-			std::enable_if<
-				!std::is_same<T, U>::value && 
-				!is_instance_of<T, element_list>::value &&
-				!is_instance_of<T, std::initializer_list>::value &&
-				std::is_constructible<T, const U&>::value
-			>::type>
-inline element_list<T> operator + (const U& e1, const T& e2)
+inline const initializer<element>& operator + (const initializer<element>& list, const element& e)
 {
-	return element_list<T>({T(e1), e2});
-}
-template <typename T, typename U, typename = typename
-			std::enable_if<
-				!std::is_same<T, U>::value && 
-				!is_instance_of<T, element_list>::value &&
-				!is_instance_of<T, std::initializer_list>::value &&
-				std::is_constructible<T, const U&>::value
-			>::type>
-inline element_list<T> operator + (const T& e1, const U& e2)
-{
-	return element_list<T>({e1, T(e2)});
-}
-template <typename T>
-inline const element_list<T>& operator + (const element_list<T>& list, const T& e)
-{
-	const_cast<element_list<T>&>(list).push_back(e);
+	const_cast<initializer<element>&>(list).push_back(e);
 	return list;
-}
-template <typename T, typename U, typename = typename
-			std::enable_if<
-				!std::is_same<T, U>::value && 
-				std::is_constructible<T, const U&>::value
-			>::type>
-inline const element_list<T>& operator + (const element_list<T>& list, const U& e)
-{
-	const_cast<element_list<T>&>(list).push_back(T(e));
-	return list;
-}
-template <typename T, typename U, typename = typename
-			std::enable_if<
-				!std::is_same<T, U>::value && 
-				std::is_constructible<T, const U&>::value
-			>::type>
-inline element_list<T> operator + (const element_list<U>& list, const T& e)
-{
-	auto l = element_list<T>(list);
-	l.push_back(e);
-	return l;
 }
 
 // concat operator
