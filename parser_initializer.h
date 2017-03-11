@@ -16,6 +16,7 @@ struct parser_ast_data<AstTy<RetTy>>
 	using ast_type = AstTy<RetTy>;
 	typename ast_type::on_exec_reflection on_exec;
 	typename ast_type::on_parse_reflection on_parse;
+public:
 	constexpr parser_ast_data(
 			const std::function<RetTy(ast_type&)>& rexec =
 				std::function<RetTy(ast_type&)>(
@@ -66,25 +67,26 @@ public:
 
 
 template <typename AstTy>
-struct parser_element: element
+struct parser_rule
 {
 	element_list params;
 	parser_ast_data<AstTy> ast_data;
-	parser_element(const element& elem):
-		element(~element_count++),
+public:
+	parser_rule(const element& elem):
+		// element(~element_count++),
 		params({elem}) {}
-	parser_element(
+	parser_rule(
 			const element_list& rules,
 			const parser_ast_data<AstTy>& data =
 				parser_ast_data<AstTy>()):
-		element(~element_count++),
+		// element(~element_count++),
 		params(rules),
 		ast_data(data) {}
-private:
-	static unsigned element_count;
 };
-template <typename AstTy>
-unsigned parser_element<AstTy>::element_count = 0;
+// private:
+	// static unsigned element_count;
+// template <typename AstTy>
+// unsigned parser_element<AstTy>::element_count = 0;
 
 template <typename T, typename AstTy, typename = typename
 		std::enable_if<
@@ -93,7 +95,70 @@ template <typename T, typename AstTy, typename = typename
 			>::value
 		>::type
 	>
-inline parser_element<AstTy> operator >> (const T& list, const parser_ast_data<AstTy>& f)
+inline parser_rule<AstTy> operator >> (const T& list, const parser_ast_data<AstTy>& f)
 {
-	return parser_element<AstTy>(element_list(list), f);
+	return parser_rule<AstTy>(element_list(list), f);
+}
+
+template <class AstTy>
+using parser_initializer = initializer<parser_rule<AstTy>>;
+
+template <class AstTy>
+class parser_init_element;
+
+struct parser_element: element
+{
+	constexpr parser_element(const char s[]):
+		element(~str_hash_64(s)) {}
+	template <class AstTy>
+		parser_init_element<AstTy>
+			operator = (const parser_initializer<AstTy>& list) const;
+	template <class AstTy>
+		parser_init_element<AstTy>
+			operator = (const parser_rule<AstTy>& list) const;
+};
+
+template <class AstTy>
+class parser_init_element: public element
+{
+	parser_initializer<AstTy> rules;
+	static long long element_count;
+public:
+	parser_init_element(const parser_element& elem, const parser_rule<AstTy>& rule):
+		element(elem), 
+		rules(parser_initializer<AstTy>(rule)) {}
+	template <class T, typename = typename
+			std::enable_if<
+				!std::is_same<
+					parser_rule<AstTy>, T
+				>::value &&
+				std::is_constructible<
+					parser_rule<AstTy>, const T&
+				>::value
+			>::type
+		>
+		parser_init_element(const parser_element& elem, const T& arg):
+			element(elem),
+			rules(parser_initializer<AstTy>(
+					parser_rule<AstTy>(arg)
+				)) {}
+	parser_init_element(const parser_element& elem, const parser_initializer<AstTy>& list):
+		element(elem), rules(list) {}
+};
+
+template <class AstTy>
+	parser_init_element<AstTy>
+		parser_element::operator = (const parser_initializer<AstTy>& list) const
+	{
+		return parser_init_element<AstTy>(*this, list);
+	}
+template <class AstTy>
+	parser_init_element<AstTy>
+		parser_element::operator = (const parser_rule<AstTy>& list) const
+	{
+		return parser_init_element<AstTy>(*this, parser_initializer<AstTy>(list));
+	}
+constexpr parser_element operator ""_R (const char s[], std::size_t)
+{
+	return parser_element(s);
 }

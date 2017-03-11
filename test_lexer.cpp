@@ -22,5 +22,4 @@ int main()
 	{
 		lex.next();
 	}
-	std::cout << (1 + 2 | 3) << std::endl;
 }

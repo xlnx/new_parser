@@ -37,12 +37,12 @@ inline constexpr lexer_rule operator ""_W (const char s[], std::size_t)
 	return lexer_rule(s, true);
 }
 
-struct lexer_init_element: init_element
+struct lexer_init_element: element
 {
 	std::regex mode;
 	long long value;
 	lexer_init_element(const lexer_element& lex):
-		value(lex.value), mode(std::regex([](const char* p){
+		element(lex), mode(std::regex([](const char* p){
 			static const auto escape_lst = "*.?+-$^[](){}|\\/";
 			std::string res;
 			while (*p)
@@ -54,7 +54,7 @@ struct lexer_init_element: init_element
 		}(lex.src_str),
 			std::regex::nosubs | std::regex::optimize)) {}
 	lexer_init_element(const lexer_element& lex, const lexer_rule& rule):
-		value(lex.value), mode(std::regex(*rule.src_str ?
+		element(lex), mode(std::regex(*rule.src_str ?
 				std::string(rule.src_str) + (rule.whole_word ? "\\b" : "") : "$^",
 			std::regex::nosubs | std::regex::optimize)) {}
 };
@@ -63,4 +63,4 @@ inline lexer_init_element operator >> (const lexer_element& lex, const lexer_rul
 	return lexer_init_element(lex, rule);
 }
 
-using lexer_initializer = init_element_list<lexer_init_element>;
+using lexer_initializer = initializer<lexer_init_element>;

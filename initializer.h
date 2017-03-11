@@ -10,9 +10,6 @@ struct element			// base of element literal type
 	constexpr element(const element& elem):
 		value(elem.value) {}
 };
-struct init_element
-{
-};
 
 template <typename T, template <typename...> class F>
 struct is_instance_of: std::integral_constant<bool, false>
@@ -20,6 +17,13 @@ struct is_instance_of: std::integral_constant<bool, false>
 template <typename... Args, template <typename...> class F>
 struct is_instance_of<F<Args...>, F>: std::integral_constant<bool, true>
 {}; 
+
+template <bool X, bool... Y>
+	struct tmp_and: std::integral_constant<bool, X && tmp_and<Y...>::value>
+		{};
+template <bool X>
+	struct tmp_and<X>: std::integral_constant<bool, X>
+		{};
 
 template <typename T, typename = typename
 	std::enable_if<std::is_class<T>::value>::type>
@@ -32,6 +36,20 @@ struct initializer: std::vector<T>
 		std::vector<T>(list) {}
 	initializer(const std::initializer_list<T>& list):
 		std::vector<T>(list) {}
+	template <typename X, typename... Args, typename = typename
+			std::enable_if<
+				tmp_and<
+					std::is_base_of<
+						element, X
+					>::value,
+					std::is_base_of<
+						element, Args
+					>::value...
+				>::value
+			>::type
+		>
+		initializer(const X& elem, const Args&... args):
+			initializer(initializer(args...) | elem) {}
 	template <typename U, typename = typename
 			std::enable_if<
 				std::is_constructible<T, const U&>::value
@@ -55,9 +73,9 @@ struct initializer: std::vector<T>
 };
 
 using element_list = initializer<element>;
-template <typename T, typename = typename
+/*template <typename T, typename = typename
 	std::enable_if<std::is_base_of<init_element, T>::value>::type>
-using init_element_list = initializer<T>;
+using init_element_list = initializer<T>;*/
 
 
 // element concat operator
