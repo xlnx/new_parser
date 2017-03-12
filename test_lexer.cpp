@@ -1,6 +1,6 @@
 #include "lexer.h"
 #include <iostream>
-lexer lex(
+lexer<> lex(
 	"("_T |
 	")" |
 	"+" |

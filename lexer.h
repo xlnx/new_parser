@@ -1,8 +1,10 @@
 #pragma once			// lexer.h
 #include "lexer_initializer.h"
+#include <set>
+#include <map>
 
-template <typename CharT>
-class basic_lexer
+template <typename CharT = char>
+class lexer
 {
 	lexer_initializer rules;
 	using iterator = const CharT*;
@@ -18,14 +20,30 @@ public:
 		long long id;
 		string_type value;
 	};
+	std::set<long long> signs;
+private:
+	lexer(const lexer_initializer& list):
+		rules(list), iter(&str[0])
+	{ for (auto& elem: list){
+		signs.insert(elem.value);
+	} }
 public:
-	basic_lexer(const lexer_initializer& list):
-		rules(list), iter(&str[0]) {}
-	virtual ~basic_lexer() = default;
+	template <class... T, typename = typename
+			std::enable_if<
+				tmp_and<
+					std::is_constructible<
+						lexer_init_element, T
+					>::value...
+				>::value
+			>::type
+		>
+		lexer(const T&... args):
+			lexer(lexer_initializer(args...)) {}
+	virtual ~lexer() = default;
 public:
 	void reset() { str = ""; iter = &str[0]; }
 	bool empty() const { return !*iter; }
-	basic_lexer& operator << (string_type&& src)
+	lexer& operator << (string_type&& src)
 	{
 		auto diff = iter - &str[0];
 		str += std::forward<string_type>(src) + "\n";
@@ -56,8 +74,32 @@ public:
 				}
 			}
 			iter = &str[str.length()];
+			throw std::bad_cast();
 		}
 	}
 };
 
-using lexer = basic_lexer<char>;
+template <typename AstTy, typename CharT = char>
+class reflected_lexer: public lexer<CharT>
+{
+	using reflected_lexer_initializer = initializer<
+		reflected_lexer_init_element<AstTy, CharT>>;
+	reflected_lexer_initializer list;
+public:
+	std::map<long long, lexer_callback<AstTy, CharT>> handlers;
+	template <class... T, typename = typename
+			std::enable_if<
+				tmp_and<
+					std::is_constructible<
+						reflected_lexer_init_element<AstTy, CharT>, T
+					>::value...
+				>::value
+			>::type
+		>
+		reflected_lexer(const T&... args):
+			lexer<CharT>(reflected_lexer_init_element<AstTy, CharT>(args).elem...),
+			list({reflected_lexer_init_element<AstTy, CharT>(args)...})
+		{ for (auto& reflect: list){
+			handlers[reflect.elem.value] = reflect.handler;
+		}}
+};
