@@ -70,7 +70,7 @@ public:
 					while (*iter && spaces.find_first_of(*iter) != string_type::npos)
 							++iter;
 					string_type res = result[0];
-					return {str_hash_64(res.c_str()), res};
+					return {rule.value, res};
 				}
 			}
 			iter = &str[str.length()];

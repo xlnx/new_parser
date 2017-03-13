@@ -43,8 +43,11 @@ public:
 		parser(reflected_lexer<AstTy, CharTy>& engine, const Args&... args):
 			lex(engine), params(args...), signs(lex.signs)
 		{
+			element start = params.back();
 			params = params | parser_init_element<AstTy>(
-				""_R = element(params[0]) >> make_reflect<AstTy>()	// tag: ~0LL
+				""_p = start >> make_reflect<AstTy>(
+					[](AstTy& ast){return ast[0].gen();}
+				)	// tag: ~0LL
 			);
 			std::map<long long, std::set<long long>> FIRST, FOLLOW;
 			for (auto& elem: lex.signs)
@@ -158,7 +161,7 @@ public:
 				const parser_rule<AstTy>& rule;
 				std::size_t position;
 				bool operator < (const item& other) const
-					{ return &rule < &other.rule || position < other.position; }
+					{ return &rule < &other.rule || &rule == &other.rule && position < other.position; }
 			};
 			using closure = std::set<item>;
 			std::vector<closure> closures;
@@ -214,9 +217,9 @@ public:
 					}
 					for (auto& sign: signs)
 					{
-						closure NEW;
 						if (!GOTO[state][sign])
 						{
+							closure NEW;
 							for (auto& term: closures[state])
 							{
 								if (term.position != term.rule.size() &&
@@ -245,7 +248,7 @@ public:
 											break;
 										}
 									}
-									if (!is_sub) break;
+									if (is_sub) break;
 								}
 								if (is_sub)
 								{
@@ -346,7 +349,7 @@ public:
 			}
 		} while (1);
 		SUCCESS:
-		;
+		ast_stack.front()->gen();
 	}
 };
 

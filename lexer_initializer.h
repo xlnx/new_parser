@@ -22,9 +22,13 @@ struct lexer_rule
 	constexpr lexer_rule(const char s[], bool w = false):
 		src_str(s), whole_word(w) {}
 };
-inline constexpr lexer_rule operator ""_W (const char s[], std::size_t)
+inline constexpr lexer_rule operator ""_rw (const char s[], std::size_t)
 {
 	return lexer_rule(s, true);
+}
+inline constexpr lexer_rule operator ""_r (const char s[], std::size_t)
+{
+	return lexer_rule(s);
 }
 
 template <typename AstTy, typename CharT = char>
@@ -71,7 +75,7 @@ struct lexer_element: element
 	inline reflected_lexer_init_element<AstTy, CharT>
 		operator = (const reflected_lexer_rule<AstTy, CharT>&) const;
 };
-inline constexpr lexer_element operator ""_T (const char s[], std::size_t)
+inline constexpr lexer_element operator ""_t (const char s[], std::size_t)
 {
 	return lexer_element(s);
 }

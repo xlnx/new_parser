@@ -52,7 +52,7 @@ public:
 		{ return *sub_ast[i]; }
 	RetTy& term(std::size_t i)
 		{ return sub_terms[i]; }
-	RetTy gen(ast<RetTy>&) { return ref_exec(*this); }
+	RetTy gen() { return ast_data.on_exec(*this); }
 };
 
 
@@ -171,7 +171,7 @@ template <class AstTy>
 	{
 		return parser_init_element<AstTy>(*this, parser_initializer<AstTy>(list));
 	}
-constexpr parser_element operator ""_R (const char s[], std::size_t)
+constexpr parser_element operator ""_p (const char s[], std::size_t)
 {
 	return parser_element(s);
 }
