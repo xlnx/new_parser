@@ -11,6 +11,7 @@ class lexer
 	using string_type = std::basic_string<CharT>;
 	string_type str;
 	iterator iter;
+	static const string_type spaces;
 public:
 	struct token;
 	using value_type = token;
@@ -54,10 +55,11 @@ public:
 	{
 		str = std::forward<string_type>(src);
 		iter = &str[0];
+		while (*iter && spaces.find_first_of(*iter) != string_type::npos)
+				++iter;
 	}
 	value_type next()
 	{
-		static string_type spaces = " \t\r\n";
 		if (*iter)
 		{
 			std::match_results<const CharT*> result;
@@ -78,6 +80,8 @@ public:
 		}
 	}
 };
+template <typename CharT>
+const typename lexer<CharT>::string_type lexer<CharT>::spaces = " \t\r\n";
 
 template <typename AstTy, typename CharT = char>
 class reflected_lexer: public lexer<CharT>
