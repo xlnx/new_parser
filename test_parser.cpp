@@ -1,6 +1,5 @@
 #include "parser.h"
 #include <iostream>
-#include <cstdio>
 #define Bin2(oper) make_reflect<ast_type>([](ast_type& ast){\
 	return ast[0].gen() oper ast[1].gen();\
 })
@@ -13,30 +12,17 @@
 #define FetchTerm(x) make_reflect<ast_type>([](ast_type& ast){\
 	return ast.term(x);\
 })
-using rtype = int;
+using rtype = long long;
 using ast_type = ast<rtype>;
 using namespace std;
 reflected_lexer<ast_type> lex(
 	"+"_t, "-"_t, "*"_t, "/"_t, "~"_t, "%"_t, "<<"_t, ">>"_t, "&"_t, "^"_t, "|"_t, "("_t, ")"_t,
-	"dec"_t = "[1-9]\\d*"_r
-		>> lexer_reflect<ast_type>([](const string& src){
-			rtype r; sscanf(src.c_str(), "%d", &r); return r;
-		}),
-	"oct"_t = "0[0-7]*"_r
-		>> lexer_reflect<ast_type>([](const string& src){
-			rtype r; sscanf(src.c_str(), "%o", &r); return r;
-		}),
-	"hex"_t = "0[xX][0-9a-fA-F]+"_r
-		>> lexer_reflect<ast_type>([](const string& src){
-			rtype r; sscanf(src.c_str(), "%x", &r); return r;
-		})
+	"integer"_t = "(0[xX][0-9a-fA-F]+)|([1-9]\\d*)|(0[0-7]*)"_r
+		>> lexer_reflect<ast_type>([](const string& src){size_t idx; return stoll(src, &idx, 0);})
 );
 parser<ast_type> my_parser(lex,
 	"start"_p = "expr"_p
-		>> make_reflect<ast_type>([](ast_type& ast){
-			auto r = ast[0].gen();
-			cout << r << endl; return r;
-		}),
+		>> make_reflect<ast_type>([](ast_type& ast)->rtype{cout << ast[0].gen() << endl;}),
 	"expr"_p = 
 		"expr"_p + "|"_t + "expr1"_p	>> Bin2(|)
 		|"expr1"_p						>> PassOn(),
@@ -64,12 +50,8 @@ parser<ast_type> my_parser(lex,
 		|"~"_t + "expr6"_p				>> Bin1l(~)
 		|"elem"_p						>> PassOn(),
 	"elem"_p = 
-		"integer"_p						>> PassOn()
-		|"("_t + "expr"_p + ")"_t		>> PassOn(),
-	"integer"_p =
-		"dec"_t							>> FetchTerm(0)
-		|"oct"_t						>> FetchTerm(0)
-		|"hex"_t						>> FetchTerm(0)
+		"integer"_t						>> FetchTerm(0)
+		|"("_t + "expr"_p + ")"_t		>> PassOn()
 );
 int main()
 {
