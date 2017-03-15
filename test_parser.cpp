@@ -1,7 +1,11 @@
 #include "parser.h"
+#include "longint/longint.h"
 #include <iostream>
 #define Bin2(oper) make_reflect<ast_type>([](ast_type& ast){\
 	return ast[0].gen() oper ast[1].gen();\
+})
+#define Bin2Int(oper) make_reflect<ast_type>([](ast_type& ast){\
+	return ast[0].gen() oper ast[1].gen().as_int();\
 })
 #define Bin1l(oper) make_reflect<ast_type>([](ast_type& ast){\
 	return oper ast[0].gen();\
@@ -12,17 +16,21 @@
 #define FetchTerm(x) make_reflect<ast_type>([](ast_type& ast){\
 	return ast.term(x);\
 })
-using rtype = long long;
+using rtype = longint;
 using ast_type = ast<rtype>;
 using namespace std;
 reflected_lexer<ast_type> lex(
 	"+"_t, "-"_t, "*"_t, "/"_t, "~"_t, "%"_t, "<<"_t, ">>"_t, "&"_t, "^"_t, "|"_t, "("_t, ")"_t,
 	"integer"_t = "(0[xX][0-9a-fA-F]+)|([1-9]\\d*)|(0[0-7]*)"_r
-		>> lexer_reflect<ast_type>([](const string& src){size_t idx; return stoll(src, &idx, 0);})
+		>> lexer_reflect<ast_type>([](const string& src){return longint(src.c_str());})
 );
 parser<ast_type> my_parser(lex,
 	"start"_p = "expr"_p
-		>> make_reflect<ast_type>([](ast_type& ast)->rtype{cout << ast[0].gen() << endl;}),
+		>> make_reflect<ast_type>([](ast_type& ast)->rtype{
+			auto x = ast[0].gen();
+			cout << x << endl;
+			return x;
+		}),
 	"expr"_p = 
 		"expr"_p + "|"_t + "expr1"_p	>> Bin2(|)
 		|"expr1"_p						>> PassOn(),
@@ -33,8 +41,8 @@ parser<ast_type> my_parser(lex,
 		"expr2"_p + "&"_t + "expr3"_p	>> Bin2(&)
 		|"expr3"_p						>> PassOn(),
 	"expr3"_p = 
-		"expr3"_p + "<<"_t + "expr4"_p	>> Bin2(<<)
-		|"expr3"_p + ">>"_t + "expr4"_p	>> Bin2(>>)
+		"expr3"_p + "<<"_t + "expr4"_p	>> Bin2Int(<<)
+		|"expr3"_p + ">>"_t + "expr4"_p	>> Bin2Int(>>)
 		|"expr4"_p						>> PassOn(),
 	"expr4"_p = 
 		"expr4"_p + "+"_t + "expr5"_p	>> Bin2(+)
