@@ -1,13 +1,13 @@
 #include "lexer.h"
 #include <iostream>
 lexer<> lex(
-	"("_T |
-	")" |
-	"+" |
-	"-" |
-	"*" |
-	"/" |
-	"number"_T >> "\\d+"
+	"("_t,
+	")"_t,
+	"+"_t,
+	"-"_t,
+	"*"_t,
+	"/"_t,
+	"number"_t = "\\d+"_r
 );
 // init<init_elem> | elem
 int main()
