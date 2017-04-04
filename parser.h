@@ -23,7 +23,6 @@ class parser
 	static const long long empty_elem;
 	static const long long stack_bottom;
 	using param_list = initializer<parser_init_element<AstTy>>;
-	using exception_type = parser_exception<reflected_lexer<AstTy, CharTy>>;
 	using ast_base = ast<typename AstTy::value_type>;
 	enum action_type { a_error = 0, a_accept, a_move_in, a_reduce, a_hold };
 	struct action
@@ -75,7 +74,26 @@ class parser
 			}
 		}
 	}
-	void gen_closure(closure I, std::size_t state)
+	void register_sub(long long sign, const parser_rule<AstTy>* rule_ptr, std::size_t state)
+	{
+		if (!ACTION[state][sign].flag)
+		{
+			ACTION[state][sign] = action(a_hold, rule_ptr);
+			GOTO[state][sign] = closures.size();
+			if (auto param_ptr = param_of[sign])
+			{
+				for (auto &rule: *param_ptr)
+				{
+					for (auto &elem: rule)
+					{
+						register_sub(elem.value, rule_ptr, state);
+						if (!FIRST[elem.value].count(empty_elem)) break;
+					}
+				}
+			}
+		}
+	}
+	void expand_closure(closure I, std::size_t state)
 	{
 		for (auto &term: closure(I))
 		{	
@@ -83,10 +101,8 @@ class parser
 			{
 				if (term.rule.size() != term.position)
 				{
-					ACTION[state][term.rule[term.position].value] = action(
-						a_hold, find_empty(term.rule[term.position - 1].value)
-					);
-					GOTO[state][term.rule[term.position].value] = closures.size();
+					register_sub(term.rule[term.position].value,
+						find_empty(term.rule[term.position - 1].value), state);
 				}
 				else
 				{
@@ -103,6 +119,10 @@ class parser
 				}
 			}
 		}
+	}
+	void gen_closure(closure I, std::size_t state)
+	{
+		expand_closure(I, state);
 		bool gen_sub = false;
 		do {
 			gen_sub = false;
@@ -115,11 +135,14 @@ class parser
 						if (auto param_ptr = param_of[term.rule[pos].value])
 						{
 							for (auto& rule: *param_ptr)
-							{	
-								if (!I.count(item{rule, 0}))
+							{
+								if (rule.size() != 1 || rule[0].value != empty_elem)
 								{
-									I.insert(item{rule, 0});
-									gen_sub = true;
+									if (!I.count(item{rule, 0}))
+									{
+										I.insert(item{rule, 0});
+										gen_sub = true;
+									}
 								}
 							}
 						}
@@ -133,6 +156,7 @@ class parser
 		ACTION.push_back(std::map<long long, action>());
 	}
 public:
+	using exception_type = parser_exception<reflected_lexer<AstTy, CharTy>>;
 	template <class... Args, typename = typename
 			std::enable_if<
 				tmp_and<
@@ -266,14 +290,9 @@ public:
 				add_sub = false;
 				for (std::size_t state = 0; state != closures.size(); ++state)
 				{
-					const parser_rule<AstTy>* empty_sign_ptr = nullptr;
 					for (auto& term: closures[state])
 					{
-						if (term.rule.size() == 1 && term.rule[0].value == empty_elem)
-						{
-							empty_sign_ptr = &term.rule;
-						}
-						else if (term.rule.size() == term.position)
+						if (term.rule.size() == term.position)
 						{
 							for (auto elem: FOLLOW[parent_of[&term.rule]])
 							{
@@ -323,35 +342,30 @@ public:
 								{
 									GOTO[state][sign] = dest_state;
 									ACTION[state][sign] = a_move_in;
+									expand_closure(closures[dest_state], state);
 								}
 								else
 								{
 									GOTO[state][sign] = closures.size();
 									gen_closure(NEW, state);
+									add_sub = true;
 									switch (ACTION[state][sign].flag)
 									{
 									case a_accept: case a_move_in: throw std::bad_cast();
-									case a_error: case a_hold: ACTION[state][sign] = a_move_in; break;
-									default: if (index_of[rule_ptr] < index_of[ACTION[state][sign].rule])
+									case a_error: ACTION[state][sign] = a_move_in; break;
+									case a_reduce: if (index_of[rule_ptr] < index_of[ACTION[state][sign].rule])
 										ACTION[state][sign] = a_move_in;
 									}
 								}
 							}
 						}
 					}
-					if (empty_sign_ptr)
-					{
-						for (auto& sign: signs)
-						{
-							if (ACTION[state][sign].flag == a_error)
-							{
-								ACTION[state][sign] = action(
-									a_reduce,
-									empty_sign_ptr
-								);
-							}
+					/*if (state == 38) {
+						for (auto &sign: signs) {
+							std::cout << sign << ": " << ACTION[state][sign].flag << std::endl;
 						}
-					}
+						std::cout << " ============== \n";
+					}*/
 				}
 			} while (add_sub);
 			/*for (std::size_t i = 0; i != closures.size(); ++i) {
@@ -433,7 +447,7 @@ public:
 				else
 					throw exception_type(tokens.front());
 			}
-			default: {
+			case a_reduce: {
 				//std::cout << "reduce" << std::endl;
 				merge(ACTION[states.top()][sign].rule);
 			}
