@@ -10,10 +10,10 @@
 template <typename lexer_type>
 struct parser_exception: public std::logic_error {
 	parser_exception():
-		std::logic_error("\'unexpected eof\'")
+		std::logic_error("unexpected \'eof\'")
 	{}
 	parser_exception(const typename lexer_type::value_type& t):
-		std::logic_error(t.value)
+		std::logic_error("unexpected \'" + t.value + "\'")
 	{}
 };
 
@@ -41,6 +41,97 @@ class parser
 	std::map<const parser_rule<AstTy>*, long long> parent_of;
 	std::map<const parser_rule<AstTy>*, std::size_t> index_of;
 	std::map<long long, parser_init_element<AstTy>*> param_of;
+	std::map<long long, std::set<long long>> FIRST, FOLLOW;
+	struct item
+	{
+		const parser_rule<AstTy>& rule;
+		std::size_t position;
+		bool operator < (const item& other) const
+			{ return &rule < &other.rule || &rule == &other.rule && position < other.position; }
+	};
+	using closure = std::set<item>;
+	std::vector<closure> closures;
+	auto find_empty(long long value)->const parser_rule<AstTy>*
+	{
+		auto& param = *param_of[value];
+		for (auto& rule: param)
+		{
+			if (rule.size() == 1 && rule[0].value == empty_elem)
+			{
+				return &rule;
+			}
+			else
+			{
+				bool is_empty = true;
+				for (auto& elem: rule)
+				{
+					if (!(is_empty &= FIRST[elem.value].count(empty_elem)))
+						break;
+				}
+				if (is_empty && rule[0].value != value)
+				{
+					return find_empty(rule[0].value);
+				}
+			}
+		}
+	}
+	void gen_closure(closure I, std::size_t state)
+	{
+		for (auto &term: closure(I))
+		{	
+			if (FIRST[term.rule[term.position - 1].value].count(empty_elem))
+			{
+				if (term.rule.size() != term.position)
+				{
+					ACTION[state][term.rule[term.position].value] = action(
+						a_hold, find_empty(term.rule[term.position - 1].value)
+					);
+					GOTO[state][term.rule[term.position].value] = closures.size();
+				}
+				else
+				{
+					for (auto &sign: signs)
+					{
+						if (!ACTION[state][sign].flag)
+						{
+							ACTION[state][sign] = action(
+								a_hold, find_empty(term.rule[term.position - 1].value)
+							);
+							GOTO[state][sign] = closures.size();
+						}
+					}
+				}
+			}
+		}
+		bool gen_sub = false;
+		do {
+			gen_sub = false;
+			for (auto& term: closure(I))		// prevent iter loss
+			{
+				if (term.rule.size() != term.position)
+				{
+					auto pos = term.position;
+					do {
+						if (auto param_ptr = param_of[term.rule[pos].value])
+						{
+							for (auto& rule: *param_ptr)
+							{	
+								if (!I.count(item{rule, 0}))
+								{
+									I.insert(item{rule, 0});
+									gen_sub = true;
+								}
+							}
+						}
+					} while (FIRST[term.rule[pos].value].count(empty_elem) && 
+							++pos != term.position);
+				}
+			}
+		} while (gen_sub);
+		closures.push_back(std::move(I));
+		GOTO.push_back(std::map<long long, std::size_t>());
+		ACTION.push_back(std::map<long long, action>());
+	}
 public:
 	template <class... Args, typename = typename
 			std::enable_if<
@@ -60,7 +151,6 @@ public:
 					[](AstTy& ast){return ast[0].gen();}
 				)	// tag: ~0LL
 			);
-			std::map<long long, std::set<long long>> FIRST, FOLLOW;
 			for (auto& elem: lex.signs)
 			{
 				FIRST[elem].insert(elem);
@@ -86,7 +176,6 @@ public:
 								if (first_elem == empty_elem)
 								{
 									has_empty = true;
-									//std::cout << "sadiasdsadasds" <<std::endl;
 								}
 								else if (!FIRST[param.value].count(first_elem))
 								{
@@ -159,7 +248,6 @@ public:
 					}
 				}
 			} while (add_sub);
-//std::cout << "\n\n";
 			for (auto& param: params)
 			{
 				static std::size_t index = 0;
@@ -173,93 +261,7 @@ public:
 				signs.insert(param.value);
 			}
 			signs.insert(stack_bottom);
-			//for (auto & s: signs) {
-				//std::cout << s << " -> " << std::endl;
-				//for (auto &e: FIRST[s])
-					//std::cout << e << std::endl;
-			//}
-			//std::cout << " === " << std::endl;
-			//for (auto & s: signs) {
-				//std::cout << s << " -> " << std::endl;
-				//for (auto &e: FOLLOW[s])
-					//std::cout << e << std::endl;
-			//}
-			struct item
-			{
-				const parser_rule<AstTy>& rule;
-				std::size_t position;
-				bool operator < (const item& other) const
-					{ return &rule < &other.rule || &rule == &other.rule && position < other.position; }
-			};
-			using closure = std::set<item>;
-			std::vector<closure> closures;
-			auto gen_closure = [&](closure I, std::size_t state)
-			{
-				for (auto &term: closure(I))
-				{	
-					if (FIRST[term.rule[term.position - 1].value].count(empty_elem))
-					{
-						if (term.rule.size() != term.position)
-						{
-							ACTION[state][term.rule[term.position].value] = action(
-								a_hold
-							);
-							GOTO[state][term.rule[term.position].value] = closures.size();
-						}
-						else
-						{
-							for (auto &sign: signs)
-							{
-								if (!ACTION[state][sign].flag)
-								{
-									ACTION[state][sign] = action(
-										a_hold
-									);
-									GOTO[state][sign] = closures.size();
-								}
-							}
-						}
-					}
-				}
-				bool gen_sub = false;
-				do {
-					gen_sub = false;
-					for (auto& term: closure(I))		// prevent iter loss
-					{
-						if (term.rule.size() != term.position)
-						{
-							auto pos = term.position;
-							do {
-								if (auto param_ptr = param_of[term.rule[pos].value])
-								{
-									for (auto& rule: *param_ptr)
-									{	
-										if (!I.count(item{rule, 0}))
-										{
-											I.insert(item{rule, 0});
-											//std::cout << parent_of[&rule] << ": ";
-											gen_sub = true;
-										}
-									}
-								}
-							} while (
-								FIRST[term.rule[pos].value].count(empty_elem) && //( 
-									//!I.count(item{term.rule, ++pos}) ? (
-									//	I.insert(item{term.rule, pos}),
-									//	(gen_sub = true)
-									//): 0,
-									++pos != term.position
-								//)
-							);
-						}
-					}
-				} while (gen_sub);
-				closures.push_back(std::move(I));
-				GOTO.push_back(std::map<long long, std::size_t>());
-				ACTION.push_back(std::map<long long, action>());
-			};
 			gen_closure({item{params.back()[0], 0}}, 0);
-			//std::cout << "asdasdasdads\n\n\n\n\n";
 			do {
 				add_sub = false;
 				for (std::size_t state = 0; state != closures.size(); ++state)
@@ -267,9 +269,6 @@ public:
 					const parser_rule<AstTy>* empty_sign_ptr = nullptr;
 					for (auto& term: closures[state])
 					{
-						//if (state == 0) {
-							//std::cout << ">>> " << parent_of[&term.rule] << std::endl;
-						//}
 						if (term.rule.size() == 1 && term.rule[0].value == empty_elem)
 						{
 							empty_sign_ptr = &term.rule;
@@ -355,18 +354,19 @@ public:
 					}
 				}
 			} while (add_sub);
-			//for (std::size_t i = 0; i != closures.size(); ++i) {
-				//std::cout << i <<std::endl;
-				//for (auto & t: closures[i]) {
-					//std::cout << parent_of[&t.rule] << " " << t.position << std::endl;
-				//}
-			//}
+			/*for (std::size_t i = 0; i != closures.size(); ++i) {
+				std::cout << i <<std::endl;
+				for (auto & t: closures[i]) {
+					std::cout << parent_of[&t.rule] << " " << t.position << std::endl;
+				}
+			}*/
 		}
 	virtual ~parser() = default;
 public:
 	void parse(const CharTy* buffer)
 	{
 		std::queue<typename reflected_lexer<AstTy, CharTy>::value_type> tokens;
+		std::stack<std::pair<std::shared_ptr<AstTy>, long long>> new_asts;
 		lex <= buffer;
 		while (!lex.empty()) {
 			tokens.push(lex.next());
@@ -378,68 +378,75 @@ public:
 		auto merge = [&](const parser_rule<AstTy>* rule)
 		{
 			std::shared_ptr<ast_base> this_ast(std::make_shared<AstTy>(ast_base(rule->ast_data)));
-			if (rule->size() > 1 || (*rule)[0].value != empty_elem)
+			//if (rule->size() > 1 || (*rule)[0].value != empty_elem)
+			//{
+			std::size_t ast_size = 0, term_size = 0;
+			for (auto& dummy: *rule)
 			{
-				std::size_t ast_size = 0, term_size = 0;
-				for (auto& dummy: *rule)
-				{
-					if (dummy.value < 0) ast_size++;
-						else term_size++;
-				}
-				for (auto itr = ast_stack.end() - ast_size; itr != ast_stack.end(); ++itr)
-				{
-					this_ast->sub_ast.push_back(*itr);
-				}
-				for (auto itr = term_stack.end() - term_size; itr != term_stack.end(); ++itr)
-				{
-					this_ast->sub_terms.push_back(lex.handlers[itr->id](itr->value));
-				}
-				for (auto& dummy: *rule)
-				{
-					states.pop(); if (dummy.value < 0) ast_stack.pop_back();
-						else term_stack.pop_back();
-				}
-			}		// sub_rules
+				if (dummy.value <= 0) ast_size++;
+					else term_size++;
+			}
+			for (auto itr = ast_stack.end() - ast_size; itr != ast_stack.end(); ++itr)
+			{
+				this_ast->sub_ast.push_back(*itr);
+			}
+			for (auto itr = term_stack.end() - term_size; itr != term_stack.end(); ++itr)
+			{
+				this_ast->sub_terms.push_back(lex.handlers[itr->id](itr->value));
+			}
+			for (auto& dummy: *rule)
+			{
+				states.pop(); if (dummy.value <= 0) ast_stack.pop_back();
+					else term_stack.pop_back();
+			}
+			//}		// sub_rules
 			rule->ast_data.on_parse(*this_ast);
-			ast_stack.push_back(std::move(this_ast));
-			states.push(GOTO[states.top()][parent_of[rule]]);
-			//std::cout << parent_of[rule] << std::endl;
+			new_asts.push(make_pair(std::move(this_ast), parent_of[rule]));
 		};
-		do {	
-			//std::cout << std::endl << states.top() << " " << tokens.front().id << std::endl;
-			//for (auto & s: signs) {
-				//std::cout << s << " " << ACTION[states.top()][s].flag << std::endl;
-			//}
-			auto sign = tokens.empty() ? stack_bottom : tokens.front().id;
+		auto match = [&](long long sign)->bool
+		{
 			switch (ACTION[states.top()][sign].flag)
 			{
-			case a_move_in:
+			case a_move_in: {
 				//std::cout << "movein" << std::endl;
 				states.push(GOTO[states.top()][sign]);
 				if (sign >= 0)
-				{
-					term_stack.push_back(tokens.front());
-				}
-				tokens.pop(); break;
-			case a_hold:
+					term_stack.push_back(tokens.front()), tokens.pop();
+				else
+					ast_stack.push_back(new_asts.top().first), new_asts.pop();
+			} break;
+			case a_hold: {
 				//std::cout << "hold" << std::endl;
-				states.push(GOTO[states.top()][sign]);
-				ast_stack.push_back(nullptr); break;
-			case a_accept:
-				if (ast_stack.size() == 1 && tokens.empty() 
-						&& term_stack.empty()) goto SUCCESS;
+				std::size_t state = states.top();
+				states.push(0);
+				ast_stack.push_back(std::make_shared<AstTy>(
+					ast_base(ACTION[state][sign].rule->ast_data)));
+				merge(ACTION[state][sign].rule);
+			} break;
+			case a_accept: {
+				if (ast_stack.size() == 1 && tokens.empty() && new_asts.empty()
+						&& term_stack.empty()) return true;
+			}
+			case a_error: {
 				if (tokens.empty())
 					throw exception_type();//std::bad_cast();
 				else
 					throw exception_type(tokens.front());
-			case a_error:
-				throw exception_type(tokens.front());//std::bad_cast();
-			default:
+			}
+			default: {
 				//std::cout << "reduce" << std::endl;
 				merge(ACTION[states.top()][sign].rule);
 			}
+			}
+			return false;
+		};
+		do {
+			if (new_asts.empty()) {
+				if (match(tokens.empty() ? stack_bottom : tokens.front().id)) break;
+			} else {
+				if (match(new_asts.top().second)) break;
+			}
 		} while (1);
-		SUCCESS:
 		ast_stack.front()->gen();
 	}
 };

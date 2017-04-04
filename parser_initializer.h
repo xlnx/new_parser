@@ -44,15 +44,44 @@ private:
 	std::vector<RetTy> sub_terms;
 	const parser_ast_data<ast>& ast_data;
 public:
+	class iterator {
+		using iter_ty = typename std::vector<std::shared_ptr<ast<RetTy>>>::iterator;
+		iter_ty iter;
+	public:
+		iterator(const iter_ty& it): iter(it) {}
+		iterator& operator ++ ()
+			{ ++iter; return *this; }
+		iterator operator ++ (int)
+			{ ++iter; return iterator(iter - 1); }
+		iterator& operator -- ()
+			{ --iter; return *this; }
+		iterator operator -- (int)
+			{ --iter; return iterator(iter + 1); }
+		ast<RetTy>& operator * ()
+			{ return **iter; }
+		bool operator != (const iterator& it) const
+			{ return iter != it.iter; }
+		bool operator == (const iterator& it) const
+			{ return iter == it.iter; }
+	};
 	ast(const parser_ast_data<ast>& ast_node):
 		ast_data(ast_node) {}
 	ast<RetTy>& sub(std::size_t i)
 		{ return *sub_ast[i]; }
 	ast<RetTy>& operator [] (std::size_t i)
 		{ return *sub_ast[i]; }
+	iterator begin()
+		{ return iterator(sub_ast.begin()); }
+	iterator end()
+		{ return iterator(sub_ast.end()); }
+	std::size_t size() const
+		{ return sub_ast.size(); }
+	std::size_t term_size() const
+		{ return sub_terms.size(); }
 	RetTy& term(std::size_t i)
 		{ return sub_terms[i]; }
-	RetTy gen() { return ast_data.on_exec(*this); }
+	RetTy gen()
+		{ return ast_data.on_exec(*this); }
 };
 
 
