@@ -192,6 +192,9 @@ public:
 						bool has_empty = false;
 						for (auto& elem: rule)
 						{
+							/*if (param.value == -66720670770044783LL) {
+								std::cout << "one of: " << elem.value << std::endl;
+							} */
 							//std::cout << elem.value << ": check";
 							has_empty = false;
 							for (auto first_elem: FIRST[elem.value])
@@ -284,6 +287,14 @@ public:
 				param_of[param.value] = &param;
 				signs.insert(param.value);
 			}
+
+			/*for (auto & sign: signs) {
+				std::cout << "in " << sign << std::endl;
+				for (auto & v: FIRST[sign]) {
+					std::cout << v << std::endl;
+				}
+			}
+*/
 			signs.insert(stack_bottom);
 			gen_closure({item{params.back()[0], 0}}, 0);
 			do {
@@ -361,6 +372,11 @@ public:
 						}
 					}
 					/*if (state == 38) {
+						std::cout << ">>> ";
+						for (auto &v: FOLLOW[-918011105800045699LL]) {
+							std::cout << v << " ";
+						}
+						std::cout << "]" << std::endl;
 						for (auto &sign: signs) {
 							std::cout << sign << ": " << ACTION[state][sign].flag << std::endl;
 						}
