@@ -15,6 +15,7 @@ int main()
 	string s;
 	while (1) {
 		getline(cin, s);
-		cout << str_hash_64(s.c_str()) << endl;
+		cout << "_t " << str_hash_64(s.c_str()) <<
+            endl << "_p " << ~str_hash_64(s.c_str()) << endl;
 	}
 }

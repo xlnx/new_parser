@@ -6,6 +6,7 @@
 #include <queue>
 #include <vector>
 #include <stack>
+//#include <iostream>
 
 template <typename lexer_type>
 struct parser_exception: public std::logic_error {
@@ -196,10 +197,13 @@ public:
 								std::cout << "one of: " << elem.value << std::endl;
 							} */
 							//std::cout << elem.value << ": check";
+							//if (param.value == -84)
+    						//	std::cout << elem.value << std::endl;
 							has_empty = false;
 							for (auto first_elem: FIRST[elem.value])
 							{
-								//std::cout << first_elem << " ";
+								//if (param.value == -84) 
+    							//	std::cout << "\n a: " <<first_elem << " \n";
 								if (first_elem == empty_elem)
 								{
 									has_empty = true;
@@ -220,7 +224,23 @@ public:
 					}
 				}
 			} while (add_sub);
-
+			/*for (auto & sign: signs) {
+				std::cout << "in " << sign << std::endl;
+				for (auto & v: FIRST[sign]) {
+					std::cout << v << std::endl;
+				}
+			}*/
+			
+			/*for (auto& param: params)
+			{
+				static std::size_t index = 0;
+				for (auto& rule: param)
+				{
+					parent_of[&rule] = param.value;
+					index_of[&rule] = index++;
+				}
+			}*/
+			
 			do {
 				add_sub = false;
 				for (auto& param: params)
@@ -239,7 +259,10 @@ public:
 											!FOLLOW[rule[i - 1].value].count(first_elem))
 										{
 											FOLLOW[rule[i - 1].value].insert(first_elem);
-											add_sub = true;
+											/*if (first_elem == 5676) {
+                                            	std::cout << rule[i].value << " -> " << rule[i - 1].value << " 1"<<std::endl;
+                                            }*/
+                                            add_sub = true;
 										}
 									}
 									if (FIRST[rule[i].value].count(empty_elem))
@@ -249,7 +272,10 @@ public:
 											if (!FOLLOW[rule[i - 1].value].count(follow_elem))
 											{
 												FOLLOW[rule[i - 1].value].insert(follow_elem);
-												add_sub = true;
+												/*if (follow_elem == 5676) {
+                                            	std::cout << param.value << " -> " << rule[i - 1].value << " 2" << std::endl;
+                                            }*/
+                                                add_sub = true;
 											}
 										}
 									}
@@ -257,7 +283,10 @@ public:
 								else if (!FOLLOW[rule[i - 1].value].count(rule[i].value))
 								{
 									FOLLOW[rule[i - 1].value].insert(rule[i].value);
-									add_sub = true;
+									/*if (rule[i].value == 5676) {
+                                          	std::cout << rule[i].value << " -> " << rule[i - 1].value << " 3" << std::endl;
+                                        }*/
+                                    add_sub = true;
 								}
 							}
 						}
@@ -268,13 +297,17 @@ public:
 								if (!FOLLOW[rule.back().value].count(follow_elem))
 								{
 									FOLLOW[rule.back().value].insert(follow_elem);
-									add_sub = true;
+									/*if (follow_elem == 5676) {
+                                        	std::cout << param.value << " -> " << rule.back().value << " 4" << std::endl;
+                                        }*/
+                                    add_sub = true;
 								}
 							}
 						}
 					}
 				}
 			} while (add_sub);
+			
 			for (auto& param: params)
 			{
 				static std::size_t index = 0;
@@ -287,14 +320,19 @@ public:
 				param_of[param.value] = &param;
 				signs.insert(param.value);
 			}
-
+			
+			/*for (auto& item: FOLLOW[-3932122194289])
+			{
+				std::cout << item << std::endl;
+            }
+*/
 			/*for (auto & sign: signs) {
 				std::cout << "in " << sign << std::endl;
-				for (auto & v: FIRST[sign]) {
+				for (auto & v: FOLLOW[sign]) {
 					std::cout << v << std::endl;
 				}
-			}
-*/
+			}*/
+
 			signs.insert(stack_bottom);
 			gen_closure({item{params.back()[0], 0}}, 0);
 			do {
@@ -307,10 +345,12 @@ public:
 						{
 							for (auto elem: FOLLOW[parent_of[&term.rule]])
 							{
-								ACTION[state][elem] = action(
-									&term.rule == &params.back()[0] ? a_accept : a_reduce,
-									&term.rule
-								);
+								if (ACTION[state][elem].flag != a_move_in) {
+									ACTION[state][elem] = action(
+										&term.rule == &params.back()[0] ? a_accept : a_reduce,
+										&term.rule
+									);
+								}
 							}
 						}
 					}
@@ -364,8 +404,13 @@ public:
 									{
 									case a_accept: case a_move_in: throw std::bad_cast();
 									case a_error: ACTION[state][sign] = a_move_in; break;
-									case a_reduce: if (index_of[rule_ptr] < index_of[ACTION[state][sign].rule])
+									case a_reduce: 
+                                        //std::cout << index_of[rule_ptr] << " " << index_of[ACTION[state][sign].rule] << std::endl;
+                                    if (index_of[rule_ptr] > index_of[ACTION[state][sign].rule]) {
 										ACTION[state][sign] = a_move_in;
+										ACTION[state][sign].rule = rule_ptr;
+										//std::cout << state << " " << sign << std::endl;
+									}
 									}
 								}
 							}
@@ -384,7 +429,7 @@ public:
 					}*/
 				}
 			} while (add_sub);
-			/*for (std::size_t i = 0; i != closures.size(); ++i) {
+            /*for (std::size_t i = 0; i != closures.size(); ++i) {
 				std::cout << i <<std::endl;
 				for (auto & t: closures[i]) {
 					std::cout << parent_of[&t.rule] << " " << t.position << std::endl;
@@ -401,6 +446,7 @@ public:
 		while (!lex.empty()) {
 			tokens.push(lex.next());
 		}
+		//std::cout << tokens.front().value;
 		std::stack<std::size_t> states;
 		std::vector<std::shared_ptr<AstTy>> ast_stack;
 		std::vector<typename reflected_lexer<AstTy, CharTy>::value_type> term_stack;
@@ -435,6 +481,7 @@ public:
 		};
 		auto match = [&](long long sign)->bool
 		{
+			//std::cout << states.top() << " " << sign << std::endl;
 			switch (ACTION[states.top()][sign].flag)
 			{
 			case a_move_in: {
