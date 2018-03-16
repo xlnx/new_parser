@@ -18,13 +18,25 @@ inline constexpr long long str_hash_64(const char *str)
 struct lexer_rule
 {
 	const char* src_str;
-	bool whole_word;
-	constexpr lexer_rule(const char s[], bool w = false):
-		src_str(s), whole_word(w) {}
+	bool whole_word, ignore_case;
+	constexpr lexer_rule(const char s[], bool w = false, bool i = false):
+		src_str(s), whole_word(w), ignore_case(i) {}
 };
 inline constexpr lexer_rule operator ""_rw (const char s[], std::size_t)
 {
 	return lexer_rule(s, true);
+}
+inline constexpr lexer_rule operator ""_rwi (const char s[], std::size_t)
+{
+	return lexer_rule(s, true, true);
+}
+inline constexpr lexer_rule operator ""_riw (const char s[], std::size_t)
+{
+	return lexer_rule(s, true, true);
+}
+inline constexpr lexer_rule operator ""_ri (const char s[], std::size_t)
+{
+	return lexer_rule(s, false, true);
 }
 inline constexpr lexer_rule operator ""_r (const char s[], std::size_t)
 {
@@ -98,7 +110,8 @@ struct lexer_init_element: element
 	lexer_init_element(const lexer_element& lex, const lexer_rule& rule):
 		element(lex), mode(std::regex(*rule.src_str ?
 				std::string(rule.src_str) + (rule.whole_word ? "\\b" : "") : "$^",
-			std::regex::nosubs | std::regex::optimize)) {}
+			rule.ignore_case ? std::regex::nosubs | std::regex::optimize | std::regex::icase :
+				std::regex::nosubs | std::regex::optimize)) {}
 };
 inline lexer_init_element 
 	lexer_element::operator = (const lexer_rule& rule) const
