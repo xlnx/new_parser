@@ -198,11 +198,15 @@ public:
 	}
 	basic_variant(basic_variant&& v): m_type(v.m_type)
 	{
-		helper::move(*this, std::move(v));
+		if (m_type != Hash<void>::value)
+		{
+			helper::move(*this, std::move(v));
+			v.m_type = Hash<void>::value;
+		}
 	}
 	basic_variant(const basic_variant& v): m_type(v.m_type)
 	{
-		helper::copy(*this, std::move(v));
+		if (m_type != Hash<void>::value) helper::copy(*this, v);
 	}
 	template <typename T,
 		typename = typename std::enable_if<contains<typename std::remove_reference<T>::type, Args...>::value>::type>
@@ -229,8 +233,12 @@ public:
 		}
 		else
 		{	// type not same, call this dtor and use copy ctor
-			if (m_type != Hash<void>::value) helper::destroy(*this);
-			helper::copy(*this, v); m_type = v.m_type;
+			if (m_type != Hash<void>::value) 
+			{
+				helper::destroy(*this);
+				helper::copy(*this, v); 
+			}
+			m_type = v.m_type;
 		}
 		return *this;
 	}
@@ -242,8 +250,13 @@ public:
 		}
 		else
 		{	// type not same, call this dtor and use move ctor
-			if (m_type != Hash<void>::value) helper::destroy(*this);
-			helper::move(*this, std::move(v)); m_type = v.m_type;
+			if (m_type != Hash<void>::value) 
+			{
+				helper::destroy(*this);
+				helper::move(*this, std::move(v));
+				v.m_type = Hash<void>::value;
+			}
+			m_type = v.m_type;
 		}
 		return *this;
 	}
@@ -446,7 +459,7 @@ const typename type_hash<T>::value_type type_hash<T>::value = std::type_index(ty
 template <class T, class... Args>
 struct err_handler
 {
-	static void execute()
+	[[noreturn]] static void execute()
 	{
 		throw std::bad_cast();
 	}
@@ -458,4 +471,3 @@ template <template <class T, class... Left> class Handler, class... Args>
 using callback_variant = basic_variant<type_hash, Handler, Args...>;
 
 #endif
-#include "unique_variant.h"

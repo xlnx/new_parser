@@ -1,7 +1,10 @@
 #pragma once			// lexer.h
 #include "lexer_initializer.h"
 #include <set>
+#include <vector>
 #include <map>
+#include <sstream>
+
 
 template <typename CharT = char>
 class lexer
@@ -11,6 +14,7 @@ class lexer
 	using string_type = std::basic_string<CharT>;
 	string_type str;
 	iterator iter;
+	::std::vector<iterator> lines;
 	static const string_type spaces;
 public:
 	struct token;
@@ -20,14 +24,44 @@ public:
 	{
 		long long id;
 		string_type value;
+		unsigned row, col;
 	};
 	std::set<long long> signs;
-private:
-	lexer(const lexer_initializer& list):
-		rules(list), iter(&str[0])
-	{ for (auto& elem: list){
-		signs.insert(elem.value);
-	} }
+	struct exception_type
+	{
+		exception_type(const ::std::string &token, 
+				unsigned row, unsigned col, const ::std::string &line, const ::std::string &extra = ""):
+			token(token), row(row), col(col), line(line), extra(extra)
+		{
+		}
+		::std::string token;
+		unsigned row, col;
+		::std::string line;
+		::std::string extra;
+		::std::string what() 
+		{
+			if (row != 0)
+			{
+				::std::ostringstream os;
+				os << ":" << row << ":" << col << ": error: unexpected \'" << token << '\'' << (extra != "" ? " due to " : "") + extra << "\n"
+					<< line << "\n";
+				for (auto p = &line[0]; p != &line[0] + col; ++p)
+				{
+					os << (*p == '\t' ? "    " : " ");
+				}
+				os << "^";
+				for (auto p = &token[1]; *p; ++p)
+				{
+					os << (*p == '\t' ? "~~~~" : "~");
+				}
+				return os.str();
+			}
+			else
+			{
+				return ": error: unexpected EOF";
+			}
+		}
+	};
 public:
 	template <class... T, typename = typename
 			std::enable_if<
@@ -40,6 +74,11 @@ public:
 		>
 		lexer(const T&... args):
 			lexer(lexer_initializer(args...)) {}
+	lexer(const lexer_initializer& list):
+		rules(list), iter(&str[0])
+	{ for (auto& elem: list){
+		signs.insert(elem.value);
+	} }
 	virtual ~lexer() = default;
 public:
 	void reset() { str = ""; iter = &str[0]; }
@@ -55,8 +94,9 @@ public:
 	{
 		str = std::forward<string_type>(src);
 		iter = &str[0];
+		lines.push_back(iter);
 		while (*iter && spaces.find_first_of(*iter) != string_type::npos)
-				++iter;
+				if (*iter++ == '\n') lines.push_back(iter); 
 	}
 	value_type next()
 	{
@@ -67,17 +107,44 @@ public:
 			{
 				if (std::regex_search(iter, result, rule.mode, std::regex_constants::match_continuous))
 				{
+					unsigned row = lines.size() - 1;
+					auto q = iter;
 					while (iter != result.suffix().first)
-							++iter;
+							if (*iter++ == '\n') lines.push_back(iter); 
 					while (*iter && spaces.find_first_of(*iter) != string_type::npos)
-							++iter;
+							if (*iter++ == '\n') lines.push_back(iter); 
 					string_type res = result[0];
-					return {rule.value, res};
+					return { rule.value, res, row, unsigned(q - &lines[row][0]) };
 				}
 			}
+			auto itr = iter;
+			auto iter_ln = itr;
+			while (*iter_ln && *iter_ln != '\n') ++ iter_ln;
 			iter = &str[str.length()];
+			throw exception_type(string_type(itr, unsigned(iter_ln - itr)), 
+				lines.size(), unsigned(itr - &lines.back()[0]), 
+				string_type(lines.back(), iter_ln), "unknown stray");
+			// throw std::bad_cast();
+		}
+		else
+		{
 			throw std::bad_cast();
 		}
+	}
+	[[noreturn]] void handle_exception()
+	{
+		throw exception_type(
+			"EOF", 0, 0, ""
+		);
+	}
+	[[noreturn]] void handle_exception(const token &tok, const std::string &extra = "")
+	{
+		auto p = lines[tok.row];
+		while (*p && *p != '\n')
+				++p;
+		throw exception_type(
+			tok.value, tok.row + 1, tok.col, string_type(lines[tok.row], p), extra
+		);
 	}
 };
 template <typename CharT>
@@ -106,4 +173,13 @@ public:
 		{ for (auto& reflect: list){
 			handlers[reflect.elem.value] = reflect.handler;
 		}}
+	reflected_lexer(const initializer<reflected_lexer_init_element<AstTy, CharT>> &l):
+		lexer<CharT>(gen(l)),
+		list(l)
+	{ for (auto& reflect: list){
+		handlers[reflect.elem.value] = reflect.handler;
+	}}
+private:
+	lexer_initializer gen(const initializer<reflected_lexer_init_element<AstTy, CharT>> &ls)
+	{ lexer_initializer ll; for (auto &e: ls) ll.push_back(e.elem); return ll; }
 };

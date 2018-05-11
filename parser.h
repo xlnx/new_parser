@@ -8,15 +8,15 @@
 #include <stack>
 //#include <iostream>
 
-template <typename lexer_type>
-struct parser_exception: public std::logic_error {
-	parser_exception():
-		std::logic_error("unexpected \'eof\'")
-	{}
-	parser_exception(const typename lexer_type::value_type& t):
-		std::logic_error("unexpected \'" + t.value + "\'")
-	{}
-};
+// template <typename lexer_type>
+// struct parser_exception: public std::logic_error {
+// 	parser_exception():
+// 		std::logic_error("unexpected \'eof\'")
+// 	{}
+// 	parser_exception(const typename lexer_type::value_type& t):
+// 		std::logic_error("unexpected \'" + t.value + "\'")
+// 	{}
+// };
 
 template <class AstTy, class CharTy = char>
 class parser
@@ -74,6 +74,8 @@ class parser
 				}
 			}
 		}
+		return nullptr;
+		// I dont know if this is right
 	}
 	void register_sub(long long sign, const parser_rule<AstTy>* rule_ptr, std::size_t state)
 	{
@@ -157,7 +159,9 @@ class parser
 		ACTION.push_back(std::map<long long, action>());
 	}
 public:
-	using exception_type = parser_exception<reflected_lexer<AstTy, CharTy>>;
+	using exception_type = typename reflected_lexer<AstTy, CharTy>::exception_type;
+		//parser_exception<reflected_lexer<AstTy, CharTy>>;
+
 	template <class... Args, typename = typename
 			std::enable_if<
 				tmp_and<
@@ -168,7 +172,12 @@ public:
 			>::type
 		>
 		parser(reflected_lexer<AstTy, CharTy>& engine, const Args&... args):
-			lex(engine), params(args...), signs(lex.signs)
+			parser(engine, param_list(args...))
+		{
+		}
+	parser(reflected_lexer<AstTy, CharTy>& engine, const param_list& ps):
+		
+			lex(engine), params(ps), signs(lex.signs)
 		{
 			element start = params.back();
 			params = params | parser_init_element<AstTy>(
@@ -308,9 +317,9 @@ public:
 				}
 			} while (add_sub);
 			
+			static std::size_t index = 0;
 			for (auto& param: params)
 			{
-				static std::size_t index = 0;
 				for (auto& rule: param)
 				{
 					parent_of[&rule] = param.value;
@@ -506,9 +515,11 @@ public:
 			}
 			case a_error: {
 				if (tokens.empty())
-					throw exception_type();//std::bad_cast();
+					lex.handle_exception();
+					// throw exception_type();//std::bad_cast();
 				else
-					throw exception_type(tokens.front());
+					lex.handle_exception(tokens.front(), "invalid syntax");
+					// throw exception_type(tokens.front());
 			}
 			case a_reduce: {
 				//std::cout << "reduce" << std::endl;

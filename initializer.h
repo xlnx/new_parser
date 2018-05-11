@@ -30,6 +30,7 @@ template <typename T, typename = typename
 struct initializer: std::vector<T>
 {
 	using value_type = T;
+	initializer() = default;
 	initializer(const T& elem):
 		std::vector<T>({elem}) {}
 	initializer(const initializer<T>& list):
